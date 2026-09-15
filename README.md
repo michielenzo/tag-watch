@@ -55,7 +55,7 @@ App-store signing and distribution are not configured. Windows uses the custom t
 
 The editable icon source is `app/assets/tag-watch.svg`. Run `npm run icons` from `app` after editing it to regenerate the Windows PNG/ICO assets and preview.
 
-Windows startup uses an app-owned child view (`StartupSplash.h`) with the embedded SVG rendered by Direct2D at the current DPI and an animated spinner. It covers the framework startup placeholder until React mounts, and dismisses on bundle-load failure so diagnostics remain accessible. The React loading view uses a generated SVG data URI on Windows. The native title bar uses multi-size ICO frames rendered individually from the SVG (Windows title bars do not accept SVG directly). Native branding changes require rebuilding the Windows executable; Metro refresh alone is insufficient.
+Windows startup uses an app-owned child view (`StartupSplash.h`) with the embedded SVG rendered by Direct2D at the current DPI and an animated spinner. The React composition root stays hidden until React mounts, preventing the framework's green loading bar and second spinner from appearing over the splash. On bundle-load failure, the root is revealed and the splash dismissed so diagnostics remain accessible. The React loading view uses a generated SVG data URI on Windows. The native title bar uses multi-size ICO frames rendered individually from the SVG (Windows title bars do not accept SVG directly). Native branding changes require rebuilding the Windows executable; Metro refresh alone is insufficient.
 
 ## Closing and minimizing
 

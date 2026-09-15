@@ -14,6 +14,12 @@
 // A process kill still falls back to the last periodic checkpoint.
 static std::function<void()> requestClose;
 static winrt::Microsoft::UI::Windowing::AppWindow mainWindow{nullptr};
+static winrt::Microsoft::UI::Composition::Visual reactRoot{nullptr};
+
+static void FinishStartup() noexcept {
+  if (reactRoot) reactRoot.IsVisible(true);
+  StartupSplash::Hide();
+}
 
 REACT_MODULE(TagWatchLifecycle)
 struct TagWatchLifecycle {
@@ -28,7 +34,7 @@ struct TagWatchLifecycle {
   void setEnabled(bool enabled) noexcept {
     context.UIDispatcher().Post([ctx = context, enabled]() {
       if (enabled) {
-        StartupSplash::Hide();
+        FinishStartup();
         requestClose = [ctx]() {ctx.EmitJSEvent(L"RCTDeviceEventEmitter", L"tagwatchClosing", nullptr);};
       } else {
         requestClose = nullptr;
@@ -67,11 +73,18 @@ _Use_decl_annotations_ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE, PSTR 
   GetModuleFileNameW(NULL, appDirectory, MAX_PATH);
   PathCchRemoveFileSpec(appDirectory, MAX_PATH);
 
-  // Create a ReactNativeWin32App with the ReactNativeAppBuilder
-  auto reactNativeWin32App{winrt::Microsoft::ReactNative::ReactNativeAppBuilder().Build()};
-
-  // Configure the initial InstanceSettings for the app's ReactNativeHost
-  auto settings{reactNativeWin32App.ReactNativeHost().InstanceSettings()};
+  // Own the island so its built-in loading bar stays hidden behind our splash.
+  // Visibility does not stop React from loading and mounting the application.
+  auto dispatcher = winrt::Microsoft::UI::Dispatching::DispatcherQueueController::CreateOnCurrentThread();
+  auto compositor = winrt::Microsoft::UI::Composition::Compositor();
+  auto host = winrt::Microsoft::ReactNative::ReactNativeHost();
+  auto settings = host.InstanceSettings();
+  settings.Properties().Set(winrt::Microsoft::ReactNative::ReactDispatcherHelper::UIDispatcherProperty(),
+      winrt::Microsoft::ReactNative::ReactDispatcherHelper::UIThreadDispatcher());
+  winrt::Microsoft::ReactNative::Composition::CompositionUIService::SetCompositor(host.InstanceSettings(), compositor);
+  auto reactWindow = winrt::Microsoft::ReactNative::ReactNativeWindow::CreateFromCompositor(compositor);
+  reactRoot = reactWindow.ReactNativeIsland().RootVisual();
+  reactRoot.IsVisible(false);
   // Register any autolinked native modules
   RegisterAutolinkedNativeModulePackages(settings.PackageProviders());
   // Register any native modules defined within this app project
@@ -106,7 +119,7 @@ _Use_decl_annotations_ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE, PSTR 
 #endif
 
   // Get the AppWindow so we can configure its initial title and size
-  auto appWindow{reactNativeWin32App.AppWindow()};
+  auto appWindow{reactWindow.AppWindow()};
   appWindow.Title(L"tag-watch");
   auto icon = static_cast<HICON>(LoadImageW(instance, MAKEINTRESOURCEW(IDI_ICON1), IMAGE_ICON, 0, 0, LR_DEFAULTSIZE | LR_SHARED));
   appWindow.SetIcon(winrt::Microsoft::UI::GetIconIdFromIcon(icon));
@@ -117,9 +130,10 @@ _Use_decl_annotations_ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE, PSTR 
   appWindow.Resize({1060, 720});
   mainWindow = appWindow;
   StartupSplash::Show(winrt::Microsoft::UI::GetWindowFromWindowId(appWindow.Id()), instance);
+  if (!StartupSplash::window) reactRoot.IsVisible(true);
   settings.InstanceLoaded([](auto const &, auto const &args) {
     if (args.Failed()) {
-      args.Context().UIDispatcher().Post([]() { StartupSplash::Hide(); });
+      args.Context().UIDispatcher().Post([]() { FinishStartup(); });
     }
   });
   appWindow.Closing([](auto const &, auto const &args) {
@@ -130,9 +144,27 @@ _Use_decl_annotations_ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE, PSTR 
   });
 
   // Get the ReactViewOptions so we can set the initial RN component to load
-  auto viewOptions{reactNativeWin32App.ReactViewOptions()};
+  auto viewOptions = winrt::Microsoft::ReactNative::ReactViewOptions();
   viewOptions.ComponentName(L"TagWatch");
 
-  // Start the app
-  reactNativeWin32App.Start();
+  appWindow.Destroying([host](auto const &, auto const &) {
+    auto unload = host.UnloadInstance();
+    unload.Completed([host](auto const &, auto const &) {
+      host.InstanceSettings().UIDispatcher().Post([]() { PostQuitMessage(0); });
+    });
+  });
+  appWindow.Show();
+  winrt::Microsoft::ReactNative::ReactCoreInjection::SetTopLevelWindowId(
+      settings.Properties(), reinterpret_cast<uint64_t>(hwnd));
+  host.ReloadInstance();
+  reactWindow.ReactNativeIsland().ReactViewHost(
+      winrt::Microsoft::ReactNative::ReactCoreInjection::MakeViewHost(host, viewOptions));
+  dispatcher.DispatcherQueue().RunEventLoop();
+  StartupSplash::Hide();
+  reactRoot = nullptr;
+  mainWindow = nullptr;
+  appWindow.Destroy();
+  dispatcher.ShutdownQueue();
+  reactWindow.Close();
+  compositor.Close();
 }
