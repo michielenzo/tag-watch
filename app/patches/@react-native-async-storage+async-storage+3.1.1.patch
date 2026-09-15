@@ -1,0 +1,21 @@
+diff --git a/node_modules/@react-native-async-storage/async-storage/windows/ReactNativeAsyncStorage/ReactNativeAsyncStorage.vcxproj b/node_modules/@react-native-async-storage/async-storage/windows/ReactNativeAsyncStorage/ReactNativeAsyncStorage.vcxproj
+--- a/node_modules/@react-native-async-storage/async-storage/windows/ReactNativeAsyncStorage/ReactNativeAsyncStorage.vcxproj
++++ b/node_modules/@react-native-async-storage/async-storage/windows/ReactNativeAsyncStorage/ReactNativeAsyncStorage.vcxproj
+@@ -38,1 +38,3 @@
+     <RunAutolinkCheck>false</RunAutolinkCheck>
++    <!-- This Windows backend uses handwritten attributed modules, not JS codegen. -->
++    <RunCodegenWindows>false</RunCodegenWindows>
+@@ -84,1 +86,2 @@
+     <PlatformToolset>v143</PlatformToolset>
++    <PlatformToolset Condition="$([MSBuild]::VersionGreaterThanOrEquals('$(VisualStudioVersion)', '18.0'))">v145</PlatformToolset>
+@@ -161,1 +164,0 @@
+-    <None Include="packages.config" />
+diff --git a/node_modules/@react-native-async-storage/async-storage/windows/ReactNativeAsyncStorage/packages.config b/node_modules/@react-native-async-storage/async-storage/windows/ReactNativeAsyncStorage/packages.config
+deleted file mode 100644
+--- a/node_modules/@react-native-async-storage/async-storage/windows/ReactNativeAsyncStorage/packages.config
++++ /dev/null
+@@ -1,4 +0,0 @@
+-<?xml version="1.0" encoding="utf-8"?>
+-<packages>
+-  <package id="Microsoft.Windows.CppWinRT" version="2.0.200316.3" targetFramework="native" />
+-</packages>
