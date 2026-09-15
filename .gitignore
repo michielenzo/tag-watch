@@ -1,0 +1,50 @@
+# Dependencies and package-manager caches
+node_modules/
+.npm/
+/app/windows/packages/
+/app/vendor/bundle/
+
+# Generated builds and test output (platform-specific rules also live in app/)
+.build/
+coverage/
+*.tsbuildinfo
+/app/windows/x64/
+/app/windows/x86/
+/app/windows/ARM64/
+/app/windows/Win32/
+AppPackages/
+BundleArtifacts/
+
+# Build logs and diagnostics
+*.log
+*.binlog
+msbuild_*.err
+msbuild_*.wrn
+
+# Local IDE state and operating-system files
+.vs/
+.idea/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+.DS_Store
+Thumbs.db
+Desktop.ini
+*.swp
+*.swo
+*~
+
+# Local environment values and private signing material
+.env
+.env.*
+!.env.example
+!.env.sample
+!.env.template
+*.pfx
+*.p12
+*.privatekey
+*.mobileprovision
+
+# Keep lockfiles, patches, native project files, and app icon assets in Git.
+# The generated icon assets are required by native builds and the React app.
