@@ -1,7 +1,11 @@
 param([string]$NodePath = (Get-Command node -ErrorAction Stop).Source)
 $ErrorActionPreference = 'Stop'
 $appDirectory = Split-Path $PSScriptRoot -Parent
-$nodeMajor = [int]((& $NodePath -p 'process.versions.node.split(".")[0]') | Select-Object -Last 1)
+$nodeVersion = (& $NodePath --version | Select-Object -Last 1)
+if ($LASTEXITCODE -ne 0 -or $nodeVersion -notmatch '^v(\d+)\.\d+\.\d+') {
+  throw "Could not determine the Node version from '$NodePath'."
+}
+$nodeMajor = [int]$Matches[1]
 if ($nodeMajor -lt 22) { throw 'Development requires Node 22 or newer. Pass -NodePath to select it.' }
 $env:PATH = (Split-Path $NodePath -Parent) + ';' + $env:PATH
 $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
