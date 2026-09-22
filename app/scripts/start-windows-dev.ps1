@@ -5,7 +5,7 @@ $nodeMajor = [int]((& $NodePath -p 'process.versions.node.split(".")[0]') | Sele
 if ($nodeMajor -lt 22) { throw 'Development requires Node 22 or newer. Pass -NodePath to select it.' }
 $env:PATH = (Split-Path $NodePath -Parent) + ';' + $env:PATH
 $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
-$msbuild = & $vswhere -latest -products '*' -find 'MSBuild\**\Bin\MSBuild.exe' | Select-Object -First 1
+$msbuild = & $vswhere -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -find 'MSBuild\**\Bin\MSBuild.exe' | Select-Object -First 1
 if (!$msbuild) { throw 'Visual Studio MSBuild was not found.' }
 $windowsDirectory = Join-Path $appDirectory 'windows'
 $outputDirectory = Join-Path $windowsDirectory 'x64\Debug'

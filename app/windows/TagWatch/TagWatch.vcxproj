@@ -99,6 +99,11 @@
     </ClCompile>
   </ItemDefinitionGroup>
   <PropertyGroup Label="UserMacros" />
+  <ItemDefinitionGroup Condition="'$(WindowsPackageType)'=='None'">
+    <Manifest>
+      <AdditionalManifestFiles>$(ProjectDir)Unpackaged.manifest;%(AdditionalManifestFiles)</AdditionalManifestFiles>
+    </Manifest>
+  </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="TagWatch.h" />
     <ClInclude Include="StartupSplash.h" />

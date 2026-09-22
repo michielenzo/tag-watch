@@ -9,6 +9,9 @@
 #include "NativeModules.h"
 #include "StartupSplash.h"
 #include <functional>
+#include <MddBootstrap.h>
+#include <WindowsAppSDK-VersionInfo.h>
+#include <winrt/Windows.ApplicationModel.Core.h>
 
 // Delay an ordinary window close until JavaScript has paused and persisted timers.
 // A process kill still falls back to the last periodic checkpoint.
@@ -62,6 +65,15 @@ struct CompReactPackageProvider
 
 // The entry point of the Win32 application
 _Use_decl_annotations_ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE, PSTR /* commandLine */, int showCmd) {
+  UINT32 packageNameLength = 0;
+  const bool unpackaged = GetCurrentPackageFullName(&packageNameLength, nullptr) == APPMODEL_ERROR_NO_PACKAGE;
+  if (unpackaged) {
+    auto bootstrap = LoadLibraryW(L"Microsoft.WindowsAppRuntime.Bootstrap.dll");
+    auto initialize = bootstrap ? reinterpret_cast<decltype(&MddBootstrapInitialize2)>(
+        GetProcAddress(bootstrap, "MddBootstrapInitialize2")) : nullptr;
+    if (!initialize || FAILED(initialize(WINDOWSAPPSDK_RELEASE_MAJORMINOR, WINDOWSAPPSDK_RELEASE_VERSION_TAG_W,
+        PACKAGE_VERSION{WINDOWSAPPSDK_RUNTIME_VERSION_UINT64}, MddBootstrapInitializeOptions_None))) return 1;
+  }
   // Initialize WinRT
   winrt::init_apartment(winrt::apartment_type::single_threaded);
 
@@ -72,6 +84,11 @@ _Use_decl_annotations_ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE, PSTR 
   WCHAR appDirectory[MAX_PATH];
   GetModuleFileNameW(NULL, appDirectory, MAX_PATH);
   PathCchRemoveFileSpec(appDirectory, MAX_PATH);
+  if (unpackaged) {
+    winrt::Windows::ApplicationModel::Core::CoreApplication::Properties().Insert(
+        L"React-Native-Community-Async-Storage-Database-Path",
+        winrt::box_value(winrt::hstring(std::wstring(appDirectory) + L"\\AsyncStorage.dev.db")));
+  }
 
   // Own the island so its built-in loading bar stays hidden behind our splash.
   // Visibility does not stop React from loading and mounting the application.

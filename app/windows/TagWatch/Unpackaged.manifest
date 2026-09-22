@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">
+  <file name="ReactNativeAsyncStorage.dll">
+    <activatableClass xmlns="urn:schemas-microsoft-com:winrt.v1"
+      name="ReactNativeAsyncStorage.ReactPackageProvider" threadingModel="both" />
+  </file>
+</assembly>
