@@ -22,6 +22,59 @@ jest.mock('../src/persistence', () => ({
 beforeEach(() => jest.useFakeTimers());
 afterEach(() => jest.useRealTimers());
 
+test('time popup applies presets and exact time, rejects invalid input and discards unsubmitted edits', async () => {
+  let app!: ReactTestRenderer.ReactTestRenderer;
+  await act(async () => {
+    app = ReactTestRenderer.create(<App />);
+  });
+  const press = async (label: string) => {
+    await act(async () => {
+      app.root
+        .findAll(b => typeof b.props.onPress === 'function')
+        .find(b => b.props.accessibilityLabel === label)!
+        .props.onPress();
+    });
+  };
+  const input = () => app.root.findByType(TextInput);
+  await press('Adjust time for Stopwatch 1');
+  await press('+5m');
+  expect(input().props.value).toBe('00:05:00');
+  await press('−30m');
+  expect(input().props.value).toBe('00:00:00');
+  await act(async () => input().props.onChangeText('01:23:45'));
+  await press('Set time');
+  await act(async () => input().props.onChangeText('bad input'));
+  expect(input().props.value).toBe('01:23:45');
+  await act(async () => input().props.onChangeText('01:'));
+  expect(
+    app.root
+      .findAll(b => typeof b.props.onPress === 'function')
+      .find(b => b.props.accessibilityLabel === 'Set time')!.props.disabled,
+  ).toBe(true);
+  await act(async () => input().props.onSubmitEditing());
+  await act(async () => {
+    app.root
+      .findAll(b => typeof b.props.onPress === 'function')
+      .find(b => b.props.testID === 'dismiss-time-editor')!
+      .props.onPress();
+  });
+  expect(app.root.findAllByType(TextInput)).toHaveLength(0);
+  await press('Adjust time for Stopwatch 1');
+  expect(input().props.value).toBe('01:23:45');
+  await act(async () => input().props.onChangeText('00:00:10'));
+  await act(async () => input().props.onSubmitEditing());
+  await act(async () => {
+    app.root
+      .findAll(b => typeof b.props.onPress === 'function')
+      .find(b => b.props.testID === 'dismiss-time-editor')!
+      .props.onPress();
+  });
+  await press('Adjust time for Stopwatch 1');
+  expect(input().props.value).toBe('00:00:10');
+  expect(app.root.findAll(b => b.props.label === 'Ⅱ  Pause')).toHaveLength(0);
+  await act(async () => app.unmount());
+});
+
 test('shows the app icon in the loading screen with a spinner', async () => {
   jest.mocked(readState).mockImplementationOnce(() => new Promise(() => {}));
   let app!: ReactTestRenderer.ReactTestRenderer;

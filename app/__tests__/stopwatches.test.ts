@@ -2,10 +2,97 @@ import {
   elapsed,
   formatTime,
   initialState,
+  isTimeDraft,
+  parseTime,
   restore,
   serialize,
   update,
 } from '../src/stopwatches';
+
+test('exact time only accepts complete hh:mm:ss durations', () => {
+  expect(parseTime('01:23:45')).toBe(5025000);
+  expect(parseTime('00:00:00')).toBe(0);
+  for (const value of [
+    '1h',
+    '+5m',
+    '1:00:00',
+    '00:60:00',
+    '00:00:60',
+    '12:34',
+    ' 12:34:56',
+    '100:00:00',
+  ]) {
+    expect(parseTime(value)).toBeNull();
+  }
+  for (const value of [
+    '',
+    '0',
+    '01',
+    '01:',
+    '01:2',
+    '01:23',
+    '01:23:',
+    '01:23:4',
+    '01:23:45',
+  ]) {
+    expect(isTimeDraft(value)).toBe(true);
+  }
+  for (const value of [
+    'a',
+    '0:',
+    '01:6',
+    '01:23:6',
+    '123',
+    '01::23',
+    '-01:00:00',
+  ]) {
+    expect(isTimeDraft(value)).toBe(false);
+  }
+});
+
+test('adjustments use current running time and restart the time anchor without pausing', () => {
+  let state = update(initialState(), { type: 'toggle', id: 'watch-1' }, 1000);
+  state = update(
+    state,
+    { type: 'adjustTime', id: 'watch-1', milliseconds: 60000 },
+    3500,
+  );
+  expect(state.runningId).toBe('watch-1');
+  expect(elapsed(state.watches[0], state, 4000)).toBe(63000);
+  state = update(
+    state,
+    { type: 'setTime', id: 'watch-1', milliseconds: 10000 },
+    5000,
+  );
+  expect(elapsed(state.watches[0], state, 6000)).toBe(11000);
+  state = update(
+    state,
+    { type: 'adjustTime', id: 'watch-1', milliseconds: -1800000 },
+    6000,
+  );
+  expect(elapsed(state.watches[0], state, 6000)).toBe(0);
+  expect(elapsed(state.watches[0], state, 7000)).toBe(1000);
+  expect(state.runningId).toBe('watch-1');
+  expect(restore(serialize(state, 7000)).watches[0].elapsedMs).toBe(1000);
+});
+
+test('editing a paused timer preserves another running timer and clamps subtraction to zero', () => {
+  let state = update(initialState(), { type: 'add' }, 100);
+  state = update(
+    state,
+    { type: 'setTime', id: 'watch-1', milliseconds: 300000 },
+    500,
+  );
+  state = update(
+    state,
+    { type: 'adjustTime', id: 'watch-1', milliseconds: -1800000 },
+    1000,
+  );
+  expect(state.watches[0].elapsedMs).toBe(0);
+  expect(state.runningId).toBe('watch-2');
+  expect(state.startedAt).toBe(100);
+  expect(elapsed(state.watches[1], state, 1000)).toBe(900);
+});
 
 test('adding and switching transfers the single running slot without losing elapsed time', () => {
   let state = update(initialState(), { type: 'toggle', id: 'watch-1' }, 0);

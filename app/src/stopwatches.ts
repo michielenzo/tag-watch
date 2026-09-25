@@ -10,6 +10,7 @@ export type Action =
   | { type: 'toggle'; id: string }
   | { type: 'add' }
   | { type: 'rename'; id: string; name: string }
+  | { type: 'setTime' | 'adjustTime'; id: string; milliseconds: number }
   | { type: 'reset' | 'delete'; id: string }
   | { type: 'theme' };
 
@@ -76,6 +77,26 @@ export function update(state: State, action: Action, now: number): State {
             : w,
         ),
       };
+    case 'setTime':
+    case 'adjustTime': {
+      const watch = state.watches.find(w => w.id === action.id);
+      if (!watch || !Number.isSafeInteger(action.milliseconds)) {
+        return state;
+      }
+      const milliseconds = Math.max(
+        0,
+        action.type === 'setTime'
+          ? action.milliseconds
+          : elapsed(watch, state, now) + action.milliseconds,
+      );
+      return {
+        ...state,
+        watches: state.watches.map(w =>
+          w.id === action.id ? { ...w, elapsedMs: milliseconds } : w,
+        ),
+        startedAt: state.runningId === action.id ? now : state.startedAt,
+      };
+    }
     case 'reset':
       return {
         ...state,
@@ -109,6 +130,21 @@ export function formatTime(ms: number) {
   ]
     .map(n => String(n).padStart(2, '0'))
     .join(':');
+}
+
+export function parseTime(value: string): number | null {
+  if (!/^\d{2}:[0-5]\d:[0-5]\d$/.test(value)) {
+    return null;
+  }
+  const [hours, minutes, seconds] = value.split(':').map(Number);
+  return (hours * 3600 + minutes * 60 + seconds) * 1000;
+}
+
+// Permit incomplete edits, but never letters, misplaced separators, or 60+ minutes/seconds.
+export function isTimeDraft(value: string): boolean {
+  return /^(?:\d{0,2}|\d{2}:(?:[0-5]?|[0-5]\d(?::(?:[0-5]?|[0-5]\d))?))$/.test(
+    value,
+  );
 }
 
 export function serialize(state: State, now: number) {

@@ -20,10 +20,12 @@ import {
   Action,
   elapsed,
   formatTime,
+  isTimeDraft,
+  parseTime,
   State,
   Stopwatch,
 } from './src/stopwatches';
-import { useStopwatches } from './src/useStopwatches';
+import { clock, useStopwatches } from './src/useStopwatches';
 import Popup from './src/Popup';
 
 const BackgroundBlocked = createContext(false);
@@ -115,6 +117,7 @@ function Card({
   width,
   dispatch,
   confirm,
+  editTime,
 }: {
   watch: Stopwatch;
   state: State;
@@ -123,6 +126,7 @@ function Card({
   width: number;
   dispatch: (action: Action) => void;
   confirm: (type: 'reset' | 'delete', watch: Stopwatch) => void;
+  editTime: (watch: Stopwatch) => void;
 }) {
   const running = state.runningId === watch.id;
   const blocked = useContext(BackgroundBlocked);
@@ -191,13 +195,24 @@ function Card({
           ]}
         />
       </View>
-      <Text
-        style={[styles.timer, { color: running ? colors.accent : colors.text }]}
-        adjustsFontSizeToFit
-        numberOfLines={1}
+      <Pressable
+        disabled={blocked}
+        accessibilityRole="button"
+        accessibilityLabel={`Adjust time for ${watch.name}`}
+        accessibilityHint="Set elapsed time or add and subtract minutes"
+        onPress={() => editTime(watch)}
       >
-        {formatTime(elapsed(watch, state, now))}
-      </Text>
+        <Text
+          style={[
+            styles.timer,
+            { color: running ? colors.accent : colors.text },
+          ]}
+          adjustsFontSizeToFit
+          numberOfLines={1}
+        >
+          {formatTime(elapsed(watch, state, now))}
+        </Text>
+      </Pressable>
       <Text
         style={[
           styles.status,
@@ -259,6 +274,21 @@ function Content() {
     type: 'reset' | 'delete';
     watch: Stopwatch;
   } | null>(null);
+  const [timeEditor, setTimeEditor] = useState<{
+    id: string;
+    draft: string;
+  } | null>(null);
+  const backgroundBlocked = confirmation !== null || timeEditor !== null;
+  const editedWatch = state.watches.find(w => w.id === timeEditor?.id);
+  const setTime = () => {
+    if (!timeEditor) {
+      return;
+    }
+    const milliseconds = parseTime(timeEditor.draft);
+    if (milliseconds !== null) {
+      dispatch({ type: 'setTime', id: timeEditor.id, milliseconds });
+    }
+  };
   const available = Math.max(0, width - insets.left - insets.right - 32);
   const columns = Math.max(1, Math.floor((available + 12) / 322));
   const cardWidth = (available - (columns - 1) * 12) / columns;
@@ -276,13 +306,13 @@ function Content() {
         },
       ]}
     >
-      <BackgroundBlocked.Provider value={confirmation !== null}>
+      <BackgroundBlocked.Provider value={backgroundBlocked}>
         <View
           style={styles.grow}
-          pointerEvents={confirmation ? 'none' : 'auto'}
-          accessibilityElementsHidden={confirmation !== null}
+          pointerEvents={backgroundBlocked ? 'none' : 'auto'}
+          accessibilityElementsHidden={backgroundBlocked}
           importantForAccessibility={
-            confirmation ? 'no-hide-descendants' : 'auto'
+            backgroundBlocked ? 'no-hide-descendants' : 'auto'
           }
         >
           <StatusBar
@@ -392,6 +422,12 @@ function Content() {
                     colors={colors}
                     width={cardWidth}
                     dispatch={dispatch}
+                    editTime={selected =>
+                      setTimeEditor({
+                        id: selected.id,
+                        draft: formatTime(elapsed(selected, state, clock())),
+                      })
+                    }
                     confirm={(type, selected) =>
                       setConfirmation({ type, watch: selected })
                     }
@@ -425,6 +461,101 @@ function Content() {
           )}
         </View>
       </BackgroundBlocked.Provider>
+      {timeEditor !== null && editedWatch && (
+        <Popup onDismiss={() => setTimeEditor(null)}>
+          <View style={styles.overlay}>
+            <Pressable
+              testID="dismiss-time-editor"
+              style={StyleSheet.absoluteFill}
+              accessible={false}
+              focusable={false}
+              onPress={() => setTimeEditor(null)}
+            />
+            <View
+              accessibilityViewIsModal
+              style={[
+                styles.dialog,
+                styles.timeDialog,
+                {
+                  backgroundColor: colors.card,
+                  borderColor: colors.border,
+                },
+              ]}
+            >
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>
+                Adjust time
+              </Text>
+              <Text
+                numberOfLines={1}
+                style={[styles.subtitle, { color: colors.muted }]}
+              >
+                {editedWatch.name}
+              </Text>
+              <Text style={[styles.message, { color: colors.text }]}>
+                {formatTime(elapsed(editedWatch, state, now))}
+              </Text>
+              <Text style={[styles.subtitle, { color: colors.muted }]}>
+                Set elapsed time (hh:mm:ss)
+              </Text>
+              <View style={styles.timeEntry}>
+                <TextInput
+                  accessibilityLabel="Elapsed time (hh:mm:ss)"
+                  value={timeEditor.draft}
+                  maxLength={8}
+                  selectTextOnFocus
+                  autoCorrect={false}
+                  returnKeyType="done"
+                  onChangeText={draft => {
+                    if (isTimeDraft(draft)) {
+                      setTimeEditor({ ...timeEditor, draft });
+                    }
+                  }}
+                  onSubmitEditing={setTime}
+                  style={[
+                    styles.timeInput,
+                    { color: colors.text, borderColor: colors.border },
+                  ]}
+                />
+                <Button
+                  colors={colors}
+                  label="Set time"
+                  primary
+                  disabled={parseTime(timeEditor.draft) === null}
+                  onPress={setTime}
+                />
+              </View>
+              {[1, -1].map(sign => (
+                <View key={sign} style={styles.timePresets}>
+                  {[1, 5, 30].map(minutes => (
+                    <View key={minutes} style={styles.grow}>
+                      <Button
+                        colors={colors}
+                        label={`${sign > 0 ? '+' : '−'}${minutes}m`}
+                        onPress={() => {
+                          const milliseconds = sign * minutes * 60000;
+                          const next = Math.max(
+                            0,
+                            elapsed(editedWatch, state, clock()) + milliseconds,
+                          );
+                          dispatch({
+                            type: 'adjustTime',
+                            id: editedWatch.id,
+                            milliseconds,
+                          });
+                          setTimeEditor({
+                            ...timeEditor,
+                            draft: formatTime(next),
+                          });
+                        }}
+                      />
+                    </View>
+                  ))}
+                </View>
+              ))}
+            </View>
+          </View>
+        </Popup>
+      )}
       {confirmation !== null && (
         <Popup onDismiss={() => setConfirmation(null)}>
           <View style={styles.overlay}>
@@ -605,4 +736,22 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
     gap: 8,
   },
+  timeEntry: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 6,
+    marginBottom: 12,
+  },
+  timeDialog: { maxWidth: 340 },
+  timeInput: {
+    flex: 1,
+    minWidth: 0,
+    height: 44,
+    borderWidth: 1,
+    borderRadius: 9,
+    paddingHorizontal: 8,
+    fontSize: 18,
+  },
+  timePresets: { flexDirection: 'row', gap: 6, marginTop: 6 },
 });
